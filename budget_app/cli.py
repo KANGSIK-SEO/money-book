@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 from . import __version__
+from . import ai_advice as AI
 from . import services as S
 from . import validators as V
 from .decorators import command, confirm, handle_errors, timed
@@ -249,6 +250,31 @@ def cmd_summary(args, ctx: Context) -> int:
     busiest = summary.busiest_day()
     if busiest:
         print(f"\n  지출이 가장 많았던 날: {busiest[0]} ({won(busiest[1])})")
+    return 0
+
+
+@command("ai-advice")
+@timed
+def cmd_ai_advice(args, ctx: Context) -> int:
+    """개별 거래 대신 월별 집계만 OpenAI에 보내 소비 조언을 생성한다."""
+    month = V.validate_month(args.month) if args.month else V.validate_month("this")
+    summary = S.summarize_month(ctx, month)
+    if summary.count == 0:
+        raise ValidationError(
+            f"{month}에 분석할 거래가 없습니다.",
+            "add 또는 import 명령으로 거래를 먼저 기록하세요.",
+        )
+    AI.load_env(Path(args.env_file).expanduser())
+    max_tokens = V.validate_positive_int(
+        args.max_output_tokens, field_name="max-output-tokens", maximum=4000)
+    print(section(f"{month} AI 소비 조언"))
+    print(AI.generate_advice(
+        summary,
+        S.budget_statuses(ctx, month, summary),
+        model=args.model,
+        max_output_tokens=max_tokens,
+    ))
+    print("\n  ※ 개인 거래 메모·날짜가 아닌 월별 집계만 전송되었습니다.")
     return 0
 
 
@@ -563,6 +589,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_summary.add_argument("--month", help="YYYY-MM (기본: 이번 달)")
     p_summary.add_argument("--top", help="카테고리 상위 N개 (기본 5)")
 
+    # ai-advice
+    p_ai = sub.add_parser("ai-advice", help="OpenAI 기반 월별 소비 분석")
+    p_ai.add_argument("--month", help="YYYY-MM (기본: 이번 달)")
+    p_ai.add_argument("--model", default=AI.DEFAULT_MODEL,
+                      help=f"OpenAI 모델 (기본: {AI.DEFAULT_MODEL})")
+    p_ai.add_argument("--max-output-tokens", default="700",
+                      help="최대 출력 토큰 (기본: 700)")
+    p_ai.add_argument("--env-file", default=".env",
+                      help="API 키 환경변수 파일 (기본: .env)")
+
     # budget
     p_budget = sub.add_parser("budget", help="예산 설정/조회")
     budget_sub = p_budget.add_subparsers(dest="budget_action", metavar="<action>")
@@ -672,6 +708,7 @@ def main(argv: list[str] | None = None) -> int:
 
     handlers = {
         "add": cmd_add, "list": cmd_list, "search": cmd_search, "summary": cmd_summary,
+        "ai-advice": cmd_ai_advice,
         "budget": cmd_budget, "category": cmd_category, "update": cmd_update,
         "delete": cmd_delete, "export": cmd_export, "import": cmd_import,
         "backup": cmd_backup, "recurring": cmd_recurring, "info": cmd_info,

@@ -26,6 +26,9 @@ python3 -m budget_app info          # 최초 실행 시 ./data 폴더와 파일�
 python3 -m budget_app import --file examples/sample.csv
 python3 -m budget_app summary --month 2026-08
 
+# OpenAI 기반 월별 소비 조언 (선택 기능)
+python3 -m budget_app ai-advice --month 2026-08
+
 # 4) 전체 기능 데모 (별도 폴더 ./demo-data 사용)
 bash demo.sh
 ```
@@ -37,6 +40,23 @@ bash demo.sh
 python3 -m budget_app --data-dir ~/ledger list
 export BUDGET_APP_DATA_DIR=~/ledger
 ```
+
+### OpenAI 소비 조언 설정
+
+프로젝트 루트의 `.env`에 API 키를 저장합니다. `.env`는 `.gitignore`에 의해
+Git에서 제외됩니다. 실제 키가 든 파일은 공유하거나 커밋하지 마세요.
+
+```env
+OPENAI_API_KEY=여기에_새_API_키
+```
+
+```bash
+python3 -m budget_app ai-advice --month 2026-08
+```
+
+이 명령은 개별 거래의 날짜·메모·태그를 보내지 않고 월별 총액, 카테고리별 합계,
+예산 소진율만 OpenAI Responses API로 전송합니다. API 사용량에 따라 비용이 발생할
+수 있습니다. 기본 모델은 비용 중심의 `gpt-5.6-luna`이며 `--model`로 변경할 수 있습니다.
 
 ---
 
